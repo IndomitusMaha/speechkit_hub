@@ -24,9 +24,9 @@ class Recognize_Task(BaseModel):
 
 class Synthesis_Task(BaseModel):
     text: str
-    sample_rate: int
     voice_model: str
-    speed: float
+    sample_rate: Optional[int] = 16000
+    speed: Optional[float] = 1.0
 
 
 def speechkit_tts(text, sampleRateHertz, data_dict, syntez_config):
