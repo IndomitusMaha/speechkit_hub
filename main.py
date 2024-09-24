@@ -1,7 +1,12 @@
 import os
+import socket
 import subprocess
+import sys
+import time
+import traceback
 import uuid
 import json
+from datetime import datetime
 from typing import Annotated, Optional
 
 from fastapi import FastAPI, Depends
@@ -14,6 +19,15 @@ from load_config import load_creds
 
 app = FastAPI()
 STT_API_KEY, STT_URL, TTS_API_KEY, TTS_URL = load_creds()
+current_device_name = socket.gethostname()
+current_folder = os.getcwd()
+service_name = os.path.basename(__file__).replace('.py', '')
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.connect(("8.8.8.8", 80))
+current_ip = s.getsockname()[0]
+s.close()
+
 
 
 class Recognize_Task(BaseModel):
@@ -66,6 +80,48 @@ def convert_raw_to_wav(input_path, output_path, raw_sample_rate, wav_sample_rate
         # Saying yes to replace audio by default
         subprocess.call(command + '-y', stdout=devnull, stderr=subprocess.STDOUT, shell=True)
         devnull.close()
+
+
+def report_exception(_UUID, _error, _log_event, logger=False):
+    outer_error_text = str(_error)
+    outer_line_of_error = sys.exc_info()[2].tb_lineno
+    try:
+        error_info = traceback.format_exc()
+        error_lines = error_info.splitlines()
+        inner_error_text = error_lines[-2].strip()
+        print(inner_error_text)
+        inner_line_of_error = error_lines[-3].split(',')[1].replace('line', '').strip()
+        print(inner_line_of_error)
+    except:
+        if 'error_line' not in locals():
+            inner_error_text = error_info
+        inner_line_of_error = ''
+
+    if logger:
+        log_content = {
+            'log_event': _log_event,
+            'error_line': outer_line_of_error,
+            'error': outer_error_text,
+        }
+        log_message = {
+            "UUID": _UUID,
+            "event": _log_event,
+            "host": current_device_name,
+            "content": log_content,
+            "timestamp": time.time(),
+            "datetime": datetime.now().strftime('%y-%m-%d %H:%M:%S.%f'),
+        }
+
+        logger.error(json.dumps(log_message))
+
+    # TODO: Any kind of notification
+    # Send notification
+    message_text = f"{_log_event} \n" \
+                   f"Outer scope: error: {outer_error_text}. line_of_error: {outer_line_of_error}\n" \
+                   f"Inner scope: error: {inner_error_text}. line_of_error: {inner_line_of_error}"
+
+    print(message_text)
+    # notification(message_text)
 
 
 @app.post("/stt")
