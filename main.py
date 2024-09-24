@@ -1,3 +1,5 @@
+import os
+import subprocess
 import uuid
 import json
 from typing import Annotated, Optional
@@ -25,23 +27,22 @@ class Recognize_Task(BaseModel):
 class Synthesis_Task(BaseModel):
     text: str
     voice_model: str
+    language: str
     sample_rate: Optional[int] = 16000
     speed: Optional[float] = 1.0
 
 
-def speechkit_tts(text, sampleRateHertz, data_dict, syntez_config):
-    url = 'https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize'
+def speechkit_tts(syntez_config):
+    url = TTS_URL
 
-    API_KEY_SYNTEZ = data_dict['API_KEY_SYNTEZ']
-
-    headers = {'Authorization': f'Api-Key {API_KEY_SYNTEZ}'}
+    headers = {'Authorization': f'Api-Key {TTS_API_KEY}'}
     data = {
-        'text': text,
+        'text': syntez_config['text'],
         'lang': syntez_config['lang'],
         'voice': syntez_config['voice_model'],
         'format': 'lpcm',
         'speed': syntez_config['speed'],
-        'sampleRateHertz': sampleRateHertz,
+        'sampleRateHertz': syntez_config['sample_rate'],
     }
 
     with requests.post(url, headers=headers, data=data, stream=True) as resp:
@@ -52,12 +53,19 @@ def speechkit_tts(text, sampleRateHertz, data_dict, syntez_config):
             yield chunk
 
 
-def get_synthesized_audio(text, raw_audio_path, data_dict, syntez_config):
-    sample_rate = data_dict['sample_rate']
-
-    with open(f'{raw_audio_path}', "wb") as f:
-        for audio_content in speechkit_tts(text, sample_rate, data_dict, syntez_config):
+def get_synthesized_audio(syntez_config, audio_path):
+    with open(f'{audio_path}', "wb") as f:
+        for audio_content in speechkit_tts(syntez_config):
             f.write(audio_content)
+
+
+def convert_raw_to_wav(input_path, output_path, raw_sample_rate, wav_sample_rate):
+    command = f"ffmpeg -f s16le -ar {raw_sample_rate} -i \"{input_path}\" -ar {wav_sample_rate} \"{output_path}\" "
+    # print(command)
+    with open(os.devnull, 'w') as devnull:
+        # Saying yes to replace audio by default
+        subprocess.call(command + '-y', stdout=devnull, stderr=subprocess.STDOUT, shell=True)
+        devnull.close()
 
 
 @app.post("/stt")
@@ -88,11 +96,24 @@ async def stt(
 
 @app.post("/synthesis")
 async def synthesis(
-        stt_request: Annotated[Recognize_Task, Depends()],
+        synthesis_request: Annotated[Synthesis_Task, Depends()],
 ) -> dict:
     UUID = str(uuid.uuid4())
 
-    print('synthesis!')
+    syntez_config = {
+        'text': synthesis_request.text,
+        'lang': synthesis_request.language,
+        'voice_model': synthesis_request.voice_model,
+        'speed': synthesis_request.speed,
+        'sample_rate': synthesis_request.sample_rate,
+    }
 
-    return {"ok": True, "audio": 'audio'}
+    raw_audio_path = f"/tmp/raw/{UUID}.raw"
+    wav_audio_path = f"/tmp/wav/{UUID}.wav"
+    print('synthesis!')
+    get_synthesized_audio(syntez_config, raw_audio_path)
+    convert_raw_to_wav(raw_audio_path, wav_audio_path, raw_sample_rate=synthesis_request.sample_rate,
+                       desired_sample_rate=synthesis_request.sample_rate)
+
+    return {"ok": True, "audio": open(wav_audio_path, 'rb')}
 
