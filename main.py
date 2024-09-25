@@ -169,7 +169,7 @@ async def synthesis(
     print('synthesis!')
     get_synthesized_audio(syntez_config, raw_audio_path)
     convert_raw_to_wav(raw_audio_path, wav_audio_path, raw_sample_rate=synthesis_request.sample_rate,
-                       desired_sample_rate=synthesis_request.sample_rate)
+                       wav_sample_rate=synthesis_request.sample_rate)
 
     return {"ok": True, "audio": open(wav_audio_path, 'rb')}
 
