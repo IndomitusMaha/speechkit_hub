@@ -3,3 +3,4 @@
 /speechkit_config.yml
 __pycache__/
 /tmp
+sandbox.py
