@@ -29,12 +29,11 @@ current_ip = s.getsockname()[0]
 s.close()
 
 
-
 class Recognize_Task(BaseModel):
-    audio_name: str
     audio_data: bytes
     language: str
-    sample_rate: int
+    audio_name: Optional[str] = 'audio_name'
+    sample_rate: Optional[int] = 16000
     audio_format: Optional[str] = 'lpcm'
 
 
@@ -147,7 +146,7 @@ async def stt(
         response_text = (await response.json())['result']
         print(response_text)
 
-    return {"ok": True, "text": response_text}
+    return {"ok": True, "text": response_text, "task_id": UUID}
 
 
 @app.post("/synthesis")
@@ -171,5 +170,5 @@ async def synthesis(
     convert_raw_to_wav(raw_audio_path, wav_audio_path, raw_sample_rate=synthesis_request.sample_rate,
                        wav_sample_rate=synthesis_request.sample_rate)
 
-    return {"ok": True, "audio": open(wav_audio_path, 'rb')}
+    return {"ok": True, "audio": open(wav_audio_path, 'rb'), "task_id": UUID}
 
