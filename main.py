@@ -1,3 +1,4 @@
+import base64
 import os
 import socket
 import subprocess
@@ -163,12 +164,27 @@ async def synthesis(
         'sample_rate': synthesis_request.sample_rate,
     }
 
-    raw_audio_path = f"/tmp/raw/{UUID}.raw"
-    wav_audio_path = f"/tmp/wav/{UUID}.wav"
+    raw_audio_folder = f"{current_folder}/tmp/raw"
+    if not os.path.exists(raw_audio_folder):
+        os.makedirs(raw_audio_folder, exist_ok=True)
+    wav_audio_folder = f"{current_folder}/tmp/wav"
+    if not os.path.exists(wav_audio_folder):
+        os.makedirs(wav_audio_folder, exist_ok=True)
+
+    raw_audio_path = f"{raw_audio_folder}/{UUID}.raw"
+    wav_audio_path = f"{wav_audio_folder}/{UUID}.wav"
     print('synthesis!')
     get_synthesized_audio(syntez_config, raw_audio_path)
     convert_raw_to_wav(raw_audio_path, wav_audio_path, raw_sample_rate=synthesis_request.sample_rate,
                        wav_sample_rate=synthesis_request.sample_rate)
 
-    return {"ok": True, "audio": open(wav_audio_path, 'rb'), "task_id": UUID}
+    with open(wav_audio_path, 'rb') as audio:
+        audio_data = audio.read()
+
+    encoded_audio = base64.b64encode(audio_data).decode("utf-8")
+
+    os.remove(raw_audio_path)
+    os.remove(wav_audio_path)
+
+    return {"ok": True, "audio": encoded_audio, "task_id": UUID}
 
